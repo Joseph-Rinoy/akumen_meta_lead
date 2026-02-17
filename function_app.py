@@ -73,10 +73,10 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
 
 
 def fetch_lead_details(lead_ids):
-    for leadgenid in lead_ids:
+    for lid in lead_ids:
         logging.info(f"Lead ID captured: {lid}")
 
-        graph_url = f"https://graph.facebook.com/v24.0/{lid}"
+        graph_url = f"https://graph.facebook.com/v19.0/{lid}"
         params = {
             "access_token": PAGE_ACCESS_TOKEN
         }
@@ -84,5 +84,38 @@ def fetch_lead_details(lead_ids):
         response = requests.get(graph_url, params=params)
         lead_data = response.json()
 
-        logging.info("Lead full data:")
-        logging.info(json.dumps(lead_data, indent=2))
+        # ----------------------------------------
+        # Extract only required fields
+        # ----------------------------------------
+        name = None
+        phone = None
+        email = None
+        place = None
+
+        for field in lead_data.get("field_data", []):
+            field_name = field.get("name")
+            field_value = field.get("values", [None])[0]
+
+            if field_name == "full_name":
+                name = field_value
+
+            elif field_name == "phone_number":
+                phone = field_value
+
+            elif field_name == "email":
+                email = field_value
+
+            elif field_name == "city":
+                place = field_value
+
+        cleaned_lead = {
+            "name": name,
+            "phone": phone,
+            "email": email,
+            "place": place
+        }
+
+        logging.info("Cleaned Lead Data:")
+        logging.info(json.dumps(cleaned_lead, indent=2))
+
+        

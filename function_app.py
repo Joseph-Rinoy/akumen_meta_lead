@@ -1,15 +1,18 @@
 import azure.functions as func
 import logging
 import json
+import requests
+import os
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
-VERIFY_TOKEN = "my_meta_verify_123"  # same token used in Meta UI
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
+PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
 def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info(" Meta webhook hit")
+    logging.info("Meta webhook hit")
 
     # -------------------------------
     # GET → Webhook verification
@@ -28,10 +31,7 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         logging.warning("Webhook verification failed")
-        return func.HttpResponse(
-            "Verification failed",
-            status_code=403
-        )
+        return func.HttpResponse("Verification failed", status_code=403)
 
     # -------------------------------
     # POST → Receive leadgen payload
@@ -48,7 +48,6 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
 
         lead_ids = []
 
-        # REAL webhook payload
         if "entry" in payload:
             for entry in payload.get("entry", []):
                 for change in entry.get("changes", []):
@@ -57,20 +56,33 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
                     if leadgen_id:
                         lead_ids.append(leadgen_id)
 
-        # TEST webhook payload (Meta dashboard)
         elif "sample" in payload:
             value = payload.get("sample", {}).get("value", {})
             leadgen_id = value.get("leadgen_id")
             if leadgen_id:
                 lead_ids.append(leadgen_id)
 
-        # Log extracted lead IDs
-        for lid in lead_ids:
-            logging.info(f" Lead ID captured: {lid}")
-            # TODO: Fetch lead details using Marketing API
+        # Call fetch function
+        fetch_lead_details(lead_ids)
 
         return func.HttpResponse(
             json.dumps({"status": "ok", "lead_ids": lead_ids}),
             status_code=200,
             mimetype="application/json"
         )
+
+
+def fetch_lead_details(lead_ids):
+    for leadgenid in lead_ids:
+        logging.info(f"Lead ID captured: {lid}")
+
+        graph_url = f"https://graph.facebook.com/v24.0/{lid}"
+        params = {
+            "access_token": PAGE_ACCESS_TOKEN
+        }
+
+        response = requests.get(graph_url, params=params)
+        lead_data = response.json()
+
+        logging.info("Lead full data:")
+        logging.info(json.dumps(lead_data, indent=2))

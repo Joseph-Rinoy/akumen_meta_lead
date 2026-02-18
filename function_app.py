@@ -4,6 +4,7 @@ import logging
 import json
 import requests
 import os
+from azure.identity import DefaultAzureCredential
 from azure.storage.queue import QueueClient
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
@@ -68,10 +69,17 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
                 if leadgen_id:
                     lead_ids.append(leadgen_id)
 
-            queue_client = QueueClient.from_connection_string(
-                conn_str=STORAGE_CONN,
-                queue_name=QUEUE_NAME
-            )
+            # Use Managed Identity when STORAGE_ACCOUNT_NAME is provided; otherwise fall back to connection string
+            storage_account_name = os.getenv("STORAGE_ACCOUNT_NAME")
+            if storage_account_name:
+                account_url = f"https://{storage_account_name}.queue.core.windows.net"
+                credential = DefaultAzureCredential()
+                queue_client = QueueClient(account_url=account_url, queue_name=QUEUE_NAME, credential=credential)
+            else:
+                queue_client = QueueClient.from_connection_string(
+                    conn_str=STORAGE_CONN,
+                    queue_name=QUEUE_NAME
+                )
             for lid in lead_ids:
                 queue_client.send_message(json.dumps({"lead_id": lid}))
 
@@ -90,7 +98,7 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
 # queue trigger
 @app.queue_trigger(
     arg_name="msg",
-    queue_name=QUEUE_NAME,
+    queue_name="%QUEUE_NAME%",
     connection="AzureWebJobsStorage"
 )
 def process_queue(msg: func.QueueMessage):

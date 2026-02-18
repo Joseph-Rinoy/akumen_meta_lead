@@ -92,18 +92,17 @@ def fetch_lead_details(lead_ids):
                 continue
 
             graph_url = f"https://graph.facebook.com/v24.0/{lid}"
-            headers = {
-                "Authorization": f"Bearer {PAGE_ACCESS_TOKEN}"
-            }
             params = {
-                "fields": "created_time,field_data"
-            }
+                        "access_token": PAGE_ACCESS_TOKEN,
+                        "fields": "created_time,field_data"
+                    }
+
 
             try:
-                response = requests.get(graph_url, headers=headers, params=params, timeout=10)
+                response = requests.get(graph_url,params=params, timeout=10)
                 response.raise_for_status()
-            except requests.exceptions.RequestException:
-                logging.exception(f"Request failed for lead {lid}")
+            except requests.exceptions.HTTPError as e:
+                logging.error(f"Graph API error for lead {lid}: {response.text}")
                 continue
 
             try:
@@ -118,11 +117,13 @@ def fetch_lead_details(lead_ids):
             name = None
             phone = None
             email = None
+            other_details = {}
 
             for field in lead_data.get("field_data", []):
                 field_name = field.get("name")
                 field_value = field.get("values", [None])[0]
 
+                # Main required fields
                 if field_name == "full_name":
                     name = field_value
 
@@ -132,10 +133,15 @@ def fetch_lead_details(lead_ids):
                 elif field_name == "email":
                     email = field_value
 
+                # Everything else automatically goes inside other_details
+                else:
+                    other_details[field_name] = field_value
+
             cleaned_lead = {
                 "name": name,
                 "phone": phone,
-                "email": email
+                "email": email,
+                "other_details": other_details
             }
 
             logging.info(f"Cleaned Lead Data: {json.dumps(cleaned_lead, indent=2)}")
@@ -154,7 +160,8 @@ def send_to_crm(lead_data):
         payload = {
             "name": lead_data.get("name"),
             "mobile": lead_data.get("phone"),  
-            "email": lead_data.get("email")
+            "email": lead_data.get("email"),
+            "other_details": lead_data.get("other_details")
         }
         response = requests.post(
             CRM_URL,
@@ -166,5 +173,7 @@ def send_to_crm(lead_data):
 
         logging.info(f"Lead successfully sent to CRM: {payload}")
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.HTTPError:
+        logging.error(f"CRM response error: {response.text}")
         logging.exception("Failed to send lead to CRM")
+

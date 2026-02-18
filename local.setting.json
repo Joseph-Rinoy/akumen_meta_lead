@@ -1,8 +1,0 @@
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "",
-    "FUNCTIONS_WORKER_RUNTIME": "python",
-    "CRM_URL" : "https://default5b8a97054add48e59c65533a48db3e.18.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f064bb241345474c9b8edb8ca00caf44/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=VCGxq_bUbNo7_Xrb3OhRtz59U9RZykZbWCm0PGKYv54"
-  }
-}

@@ -1,3 +1,4 @@
+from urllib import response
 import azure.functions as func
 import logging
 import json
@@ -106,8 +107,9 @@ def process_queue(msg: func.QueueMessage):
         }
 
         response = requests.get(graph_url, params=params, timeout=10)
-        response.raise_for_status()
-
+        if not response.ok:
+            logging.error("Graph API error %s: %s", response.status_code, response.text)
+            response.raise_for_status()
         lead_data = response.json()
 
         cleaned_lead = extract_lead_fields(lead_data)
@@ -153,6 +155,8 @@ def send_to_crm(payload):
             return
 
         response = requests.post(CRM_URL, json=payload, timeout=10)
+        if not response.ok:
+            logging.error("CRM error %s: %s", response.status_code, response.text)
         response.raise_for_status()
 
         logging.info("Lead sent to CRM successfully")

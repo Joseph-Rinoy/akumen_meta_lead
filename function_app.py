@@ -8,6 +8,8 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
+CRM_URL = os.getenv("CRM_URL")
+
 
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
@@ -136,11 +138,33 @@ def fetch_lead_details(lead_ids):
                 "email": email
             }
 
-            logging.info("Cleaned Lead Data:")
-            logging.info(json.dumps(cleaned_lead, indent=2))
+            logging.info(f"Cleaned Lead Data: {json.dumps(cleaned_lead, indent=2)}")
+
+            send_to_crm(cleaned_lead)
 
         except Exception:
             logging.exception(f"Unexpected error processing lead {lid}")
             # continue with next lead
 
-        
+def send_to_crm(lead_data):
+    try:
+        if not CRM_URL:
+            logging.error("CRM_URL is not configured")
+            return
+        payload = {
+            "name": lead_data.get("name"),
+            "mobile": lead_data.get("phone"),  
+            "email": lead_data.get("email")
+        }
+        response = requests.post(
+            CRM_URL,
+            json=payload,
+            timeout=10
+        )
+
+        response.raise_for_status()
+
+        logging.info(f"Lead successfully sent to CRM: {payload}")
+
+    except requests.exceptions.RequestException:
+        logging.exception("Failed to send lead to CRM")

@@ -16,7 +16,6 @@ QUEUE_NAME = os.getenv("QUEUE_NAME")
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
 def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Meta webhook hit")
 
     # -------------------------------
     # GET → Webhook verification
@@ -40,6 +39,7 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
     # -------------------------------
     # POST → Push lead IDs to Queue
     # -------------------------------
+    logging.info("Meta webhook hit")
     if req.method == "POST":
         try:
             try:
@@ -71,8 +71,13 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
                 conn_str=STORAGE_CONN,
                 queue_name=QUEUE_NAME
             )
+            try:
+                queue_client.create_queue()
+            except Exception:
+                pass 
             for lid in lead_ids:
                 queue_client.send_message(json.dumps({"lead_id": lid}))
+                
 
             logging.info(f"{len(lead_ids)} lead(s) pushed to queue") 
 
@@ -89,11 +94,13 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
 # queue trigger
 @app.queue_trigger(
     arg_name="msg",
-    queue_name=QUEUE_NAME,
+    queue_name="meta-ad-leads-queue",
     connection="AzureWebJobsStorage"
 )
 def process_queue(msg: func.QueueMessage):
+    logging.warning(f"hit queue trigger")
     try:
+        logging.info(f"hit queue trigger")
         data = json.loads(msg.get_body().decode())
         lead_id = data.get("lead_id")
 
@@ -162,99 +169,4 @@ def send_to_crm(payload):
         logging.exception("Failed to send lead to CRM")
 
 
-
-# def fetch_lead_details(lead_ids):
-#     for lid in lead_ids:
-#         try:
-#             logging.info(f"Lead ID captured: {lid}")
-
-#             if not PAGE_ACCESS_TOKEN:
-#                 logging.error("PAGE_ACCESS_TOKEN is not set; skipping lead fetch")
-#                 continue
-
-#             graph_url = f"https://graph.facebook.com/v24.0/{lid}"
-#             params = {
-#                         "access_token": PAGE_ACCESS_TOKEN,
-#                         "fields": "created_time,field_data"
-#                     }
-
-
-#             try:
-#                 response = requests.get(graph_url,params=params, timeout=10)
-#                 response.raise_for_status()
-#             except requests.exceptions.HTTPError as e:
-#                 logging.error(f"Graph API error for lead {lid}: {response.text}")
-#                 continue
-
-#             try:
-#                 lead_data = response.json()
-#             except ValueError:
-#                 logging.exception(f"Invalid JSON received for lead {lid}")
-#                 continue
-
-#             # ----------------------------------------
-#             # Extract only required fields
-#             # ----------------------------------------
-#             name = None
-#             phone = None
-#             email = None
-#             other_details = {}
-
-#             for field in lead_data.get("field_data", []):
-#                 field_name = field.get("name")
-#                 field_value = field.get("values", [None])[0]
-
-#                 # Main required fields
-#                 if field_name == "full_name":
-#                     name = field_value
-
-#                 elif field_name == "phone_number":
-#                     phone = field_value
-
-#                 elif field_name == "email":
-#                     email = field_value
-
-#                 # Everything else automatically goes inside other_details
-#                 else:
-#                     other_details[field_name] = field_value
-
-#             cleaned_lead = {
-#                 "name": name,
-#                 "phone": phone,
-#                 "email": email,
-#                 "other_details": other_details
-#             }
-
-#             logging.info(f"Cleaned Lead Data: {json.dumps(cleaned_lead, indent=2)}")
-
-#             send_to_crm(cleaned_lead)
-
-#         except Exception:
-#             logging.exception(f"Unexpected error processing lead {lid}")
-#             # continue with next lead
-
-# def send_to_crm(lead_data):
-#     try:
-#         if not CRM_URL:
-#             logging.error("CRM_URL is not configured")
-#             return
-#         payload = {
-#             "name": lead_data.get("name"),
-#             "mobile": lead_data.get("phone"),  
-#             "email": lead_data.get("email"),
-#             "other_details": lead_data.get("other_details")
-#         }
-#         response = requests.post(
-#             CRM_URL,
-#             json=payload,
-#             timeout=10
-#         )
-
-#         response.raise_for_status()
-
-#         logging.info(f"Lead successfully sent to CRM: {payload}")
-
-#     except requests.exceptions.HTTPError:
-#         logging.error(f"CRM response error: {response.text}")
-#         logging.exception("Failed to send lead to CRM")
 

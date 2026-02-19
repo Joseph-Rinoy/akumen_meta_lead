@@ -3,6 +3,8 @@ import logging
 import json
 import requests
 import os
+import hmac
+import hashlib
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -39,6 +41,10 @@ def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
     # POST → Receive leadgen payload
     # -------------------------------
     if req.method == "POST":
+            # ✅ Verify signature BEFORE doing anything else
+        if not verify_meta_signature(req):
+            logging.warning("Rejected request: invalid Meta signature")
+            return func.HttpResponse("Unauthorized", status_code=403)
         try:
             try:
                 payload = req.get_json()
@@ -180,3 +186,39 @@ def send_to_crm(lead_data):
         logging.error(f"CRM response error: {response.text}")
         logging.exception("Failed to send lead to CRM")
 
+
+def verify_meta_signature(req: func.HttpRequest) -> bool:
+    """
+    Meta signs the payload with your App Secret using HMAC-SHA256.
+    The signature arrives in the header: X-Hub-Signature-256: sha256=<hash>
+    """
+    signature_header = req.headers.get("X-Hub-Signature-256", "")
+    app_secret = os.getenv("META_APP_SECRET")
+
+    # If either is missing, reject the request
+    if not app_secret:
+        logging.error("META_APP_SECRET is not configured")
+        return False
+
+    if not signature_header or not signature_header.startswith("sha256="):
+        logging.warning("Missing or malformed signature header")
+        return False
+
+    # Extract just the hash part after "sha256="
+    received_signature = signature_header[7:]
+
+    # Compute expected signature using raw request body
+    raw_body = req.get_body()
+    expected_signature = hmac.new(
+        app_secret.encode("utf-8"),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+
+    # Use compare_digest to prevent timing attacks
+    is_valid = hmac.compare_digest(received_signature, expected_signature)
+
+    if not is_valid:
+        logging.warning(f"Signature mismatch. Received: {received_signature}")
+
+    return is_valid

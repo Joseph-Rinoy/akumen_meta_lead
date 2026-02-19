@@ -162,7 +162,9 @@ def send_to_crm(payload):
             logging.error("CRM_URL not configured")
             return
 
+        logging.info(f"Sending to CRM: {json.dumps(payload, indent=2)}")
         response = requests.post(CRM_URL, json=payload, timeout=10)
+        logging.info(f"CRM response status: {response.status_code}")
         if not response.ok:
             logging.error("CRM error %s: %s", response.status_code, response.text)
         response.raise_for_status()

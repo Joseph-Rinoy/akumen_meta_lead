@@ -102,7 +102,10 @@ def fetch_lead_details(lead_ids):
                 response = requests.get(graph_url,params=params, timeout=10)
                 response.raise_for_status()
             except requests.exceptions.HTTPError as e:
-                logging.error(f"Graph API error for lead {lid}: {response.text}")
+                logging.error(f"Graph API error for lead {lid}: {e.response.text}")
+                continue
+            except requests.exceptions.RequestException as e:
+                logging.error(f"Request error for lead {lid}: {str(e)}")
                 continue
 
             try:

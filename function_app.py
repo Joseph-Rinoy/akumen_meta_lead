@@ -14,7 +14,7 @@ STORAGE_CONN = os.getenv("AzureWebJobsStorage")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
 FIELD_MAP = {
     "name": ["full_name", "name", "contact_name"],
-    "phone": ["phone", "phone_number", "mobile", "mobile_number"],
+    "phone": ["phone", "phone_number", "mobile", "mobile_number","contact_number"],
     "email": ["email", "email_address"],
 }
 
@@ -116,7 +116,7 @@ def process_queue(msg: func.QueueMessage):
             "fields": "created_time,field_data"
         }
 
-        response = requests.get(graph_url, params=params, timeout=30)
+        response = requests.get(graph_url, params=params, timeout=10)
         response.raise_for_status()
 
         lead_data = response.json()
@@ -172,7 +172,7 @@ def send_to_crm(payload):
             logging.error("CRM_URL not configured")
             return
         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
-        response = requests.post(CRM_URL, json=payload, timeout=30)
+        response = requests.post(CRM_URL, json=payload, timeout=20)
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)
         response.raise_for_status()

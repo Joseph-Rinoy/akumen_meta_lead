@@ -12,7 +12,11 @@ PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 CRM_URL = os.getenv("CRM_URL")
 STORAGE_CONN = os.getenv("AzureWebJobsStorage")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
-
+FIELD_MAP = {
+    "name": ["full_name", "name", "contact_name"],
+    "phone": ["phone", "phone_number", "mobile", "mobile_number"],
+    "email": ["email", "email_address"],
+}
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
 def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
@@ -127,6 +131,7 @@ def process_queue(msg: func.QueueMessage):
         logging.exception("Queue processing failed")
         raise  # Important: enables Azure retry
 
+
 def extract_lead_fields(lead_data):
     name = None
     phone = None
@@ -134,23 +139,31 @@ def extract_lead_fields(lead_data):
     other_details = {}
 
     for field in lead_data.get("field_data", []):
-        field_name = field.get("name")
+        field_name = field.get("name", "").lower()
         field_value = field.get("values", [None])[0]
 
-        if field_name == "full_name":
+        # Skip empty values
+        if not field_value:
+            continue
+
+        # Check against FIELD_MAP
+        if field_name in FIELD_MAP["name"]:
             name = field_value
-        elif field_name == "phone_number":
+
+        elif field_name in FIELD_MAP["phone"]:
             phone = field_value
-        elif field_name == "email":
+
+        elif field_name in FIELD_MAP["email"]:
             email = field_value
+
         else:
             other_details[field_name] = field_value
 
     return {
         "name": name or "No Name",
         "mobile": phone or "No Phone Number",
-        "email": email or "No email",
-        "other_details": other_details or "No Other Details",
+        "email": email or "No Email",
+        "other_details": other_details if other_details else "No Other Details",
     }
 
 def send_to_crm(payload):

@@ -139,7 +139,7 @@ def extract_lead_fields(lead_data):
 
         if field_name == "full_name":
             name = field_value
-        elif field_name == "phone_number":
+        elif field_name in ["phone_number", "phone"]:
             phone = field_value
         elif field_name == "email":
             email = field_value
@@ -150,7 +150,7 @@ def extract_lead_fields(lead_data):
         "name": name or "No Name",
         "mobile": phone or "No Phone Number",
         "email": email or "No email",
-        "other_details": other_details or "No Other Details",
+        "other_details": other_details,
     }
 
 def send_to_crm(payload):
@@ -159,7 +159,7 @@ def send_to_crm(payload):
             logging.error("CRM_URL not configured")
             return
         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
-        response = requests.post(CRM_URL, json=payload, timeout=30)
+        response = requests.post(CRM_URL, json=payload, timeout=10)
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)
         response.raise_for_status()

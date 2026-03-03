@@ -118,10 +118,10 @@ def process_queue(msg: func.QueueMessage):
         lead_data = response.json()
 
         cleaned_lead = extract_lead_fields(lead_data)
-
+        logging.info("Lead processed successfully")
+        logging.info("Sending to crm")
         send_to_crm(cleaned_lead)
 
-        logging.info("Lead processed successfully")
 
     except Exception:
         logging.exception("Queue processing failed")
@@ -147,10 +147,10 @@ def extract_lead_fields(lead_data):
             other_details[field_name] = field_value
 
     return {
-        "name": name,
-        "mobile": phone,
-        "email": email,
-        "other_details": other_details
+        "name": name or "No Name",
+        "mobile": phone or "No Phone Number",
+        "email": email or "No email",
+        "other_details": other_details or "No Other Details",
     }
 
 def send_to_crm(payload):
@@ -158,8 +158,10 @@ def send_to_crm(payload):
         if not CRM_URL:
             logging.error("CRM_URL not configured")
             return
-
+        logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
         response = requests.post(CRM_URL, json=payload, timeout=10)
+        logging.info("CRM Response Status: %s", response.status_code)
+        logging.info("CRM Response Body: %s", response.text)
         response.raise_for_status()
 
         logging.info("Lead sent to CRM successfully")

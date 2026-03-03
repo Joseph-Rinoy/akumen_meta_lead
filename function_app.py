@@ -112,7 +112,7 @@ def process_queue(msg: func.QueueMessage):
             "fields": "created_time,field_data"
         }
 
-        response = requests.get(graph_url, params=params, timeout=10)
+        response = requests.get(graph_url, params=params, timeout=30)
         response.raise_for_status()
 
         lead_data = response.json()
@@ -159,7 +159,7 @@ def send_to_crm(payload):
             logging.error("CRM_URL not configured")
             return
         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
-        response = requests.post(CRM_URL, json=payload, timeout=10)
+        response = requests.post(CRM_URL, json=payload, timeout=30)
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)
         response.raise_for_status()

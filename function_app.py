@@ -18,6 +18,11 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 ALERT_EMAIL = os.getenv("ALERT_EMAIL")
+FIELD_MAP = {
+    "name": ["full_name", "name", "contact_name"],
+    "phone": ["phone", "phone_number", "mobile", "mobile_number","contact_number"],
+    "email": ["email", "email_address"],
+}
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
 def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
@@ -117,7 +122,7 @@ def process_queue(msg: func.QueueMessage):
             "fields": "created_time,field_data"
         }
 
-        response = requests.get(graph_url, params=params, timeout=30)
+        response = requests.get(graph_url, params=params, timeout=10)
         response.raise_for_status()
 
         lead_data = response.json()
@@ -132,6 +137,7 @@ def process_queue(msg: func.QueueMessage):
         logging.exception("Queue processing failed")
         raise  # Important: enables Azure retry
 
+
 def extract_lead_fields(lead_data):
     name = None
     phone = None
@@ -139,23 +145,31 @@ def extract_lead_fields(lead_data):
     other_details = {}
 
     for field in lead_data.get("field_data", []):
-        field_name = field.get("name")
+        field_name = field.get("name", "").lower()
         field_value = field.get("values", [None])[0]
 
-        if field_name == "full_name":
+        # Skip empty values
+        if not field_value:
+            continue
+
+        # Check against FIELD_MAP
+        if field_name in FIELD_MAP["name"]:
             name = field_value
-        elif field_name in ["phone_number", "phone"]:
+
+        elif field_name in FIELD_MAP["phone"]:
             phone = field_value
-        elif field_name == "email":
+
+        elif field_name in FIELD_MAP["email"]:
             email = field_value
+
         else:
             other_details[field_name] = field_value
 
     return {
         "name": name or "No Name",
         "mobile": phone or "No Phone Number",
-        "email": email or "No email",
-        "other_details": other_details,
+        "email": email or "No Email",
+        "other_details": other_details if other_details else "No Other Details",
     }
 
 def send_to_crm(payload):

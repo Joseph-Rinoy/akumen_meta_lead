@@ -126,6 +126,7 @@ def process_queue(msg: func.QueueMessage):
         response.raise_for_status()
 
         lead_data = response.json()
+        logging.info("Meta Payload %s", json.dumps(lead_data, indent=2))
 
         cleaned_lead = extract_lead_fields(lead_data)
         logging.info("Lead processed successfully")
@@ -145,7 +146,7 @@ def extract_lead_fields(lead_data):
     other_details = {}
 
     for field in lead_data.get("field_data", []):
-        field_name = field.get("name", "").lower()
+        field_name = field.get("name").lower()
         field_value = field.get("values", [None])[0]
 
         # Skip empty values
@@ -192,11 +193,16 @@ def send_to_crm(payload):
     except requests.exceptions.RequestException as e:
         error_message = str(e)
 
-        logging.error(f"CRM response error: {error_message}")
+        response_body = ""
+        if hasattr(e, "response") and e.response is not None:
+            response_body = e.response.text
+
+        full_error = f"{error_message} | CRM Response: {response_body}"
+
+        logging.error(f"CRM response error: {full_error}")
         logging.exception("Failed to send lead to CRM")
 
-        # Send email notification
-        send_failure_email(payload, error_message)
+        send_failure_email(payload, full_error)
 
 def get_graph_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"

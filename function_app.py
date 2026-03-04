@@ -4,6 +4,7 @@ import json
 import requests
 import os
 from azure.storage.queue import QueueClient
+from datetime import datetime, timezone, timedelta
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -12,7 +13,11 @@ PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 CRM_URL = os.getenv("CRM_URL")
 STORAGE_CONN = os.getenv("AzureWebJobsStorage")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
-
+TENANT_ID = os.getenv("TENANT_ID")
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+ALERT_EMAIL = os.getenv("ALERT_EMAIL")
 
 @app.route(route="lead_id_obtainer", methods=["GET", "POST"])
 def lead_id_obtainer(req: func.HttpRequest) -> func.HttpResponse:
@@ -158,17 +163,88 @@ def send_to_crm(payload):
         if not CRM_URL:
             logging.error("CRM_URL not configured")
             return
+
         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
+
         response = requests.post(CRM_URL, json=payload, timeout=10)
+
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)
+
         response.raise_for_status()
 
         logging.info("Lead sent to CRM successfully")
 
-    except requests.exceptions.HTTPError:
-        logging.error(f"CRM response error: {response.text}")
+    except requests.exceptions.RequestException as e:
+        error_message = str(e)
+
+        logging.error(f"CRM response error: {error_message}")
         logging.exception("Failed to send lead to CRM")
 
+        # Send email notification
+        send_failure_email(payload, error_message)
 
+def get_graph_token():
+    url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
+
+    data = {
+        "client_id": CLIENT_ID,
+        "scope": "https://graph.microsoft.com/.default",
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "client_credentials",
+    }
+
+    response = requests.post(url, data=data)
+    response.raise_for_status()
+
+    return response.json()["access_token"]
+
+def send_failure_email(payload, error_message):
+    try:
+        access_token = get_graph_token()
+
+        url = f"https://graph.microsoft.com/v1.0/users/{SENDER_EMAIL}/sendMail"
+        ist = timezone(timedelta(hours=5, minutes=30))
+        current_time = datetime.now(ist).strftime("%d %B %Y | %I:%M:%S %p IST")
+        email_body = f"""
+CRM Lead Sending Failed
+
+Time: {current_time}
+
+Error:
+{error_message}
+
+Payload:
+{json.dumps(payload, indent=2)}
+"""
+
+        message = {
+            "message": {
+                "subject": "🚨 CRM Lead Failed",
+                "body": {
+                    "contentType": "Text",
+                    "content": email_body,
+                },
+                "toRecipients": [
+                    {
+                        "emailAddress": {
+                            "address": ALERT_EMAIL
+                        }
+                    }
+                ],
+            }
+        }
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.post(url, headers=headers, json=message)
+        response.raise_for_status()
+
+        logging.info("Failure email sent successfully")
+
+    except Exception as e:
+        logging.exception("Failed to send failure notification email")
 

@@ -149,9 +149,6 @@ def extract_lead_fields(lead_data):
         field_name = field.get("name").lower()
         field_value = field.get("values", [None])[0]
 
-        # Skip empty values
-        if not field_value:
-            continue
 
         # Check against FIELD_MAP
         if field_name in FIELD_MAP["name"]:

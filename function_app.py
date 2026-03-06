@@ -178,7 +178,7 @@ def send_to_crm(payload):
 
         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
 
-        response = requests.post(CRM_URL, json=payload, timeout=20)
+        response = requests.post(CRM_URL, json=payload, timeout=30)
 
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)

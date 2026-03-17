@@ -119,7 +119,7 @@ def process_queue(msg: func.QueueMessage):
         graph_url = f"https://graph.facebook.com/v24.0/{lead_id}"
         params = {
             "access_token": PAGE_ACCESS_TOKEN,
-            "fields": "created_time,field_data"
+            "fields": "ad_name,ad_id,form_id,created_time,field_data"
         }
 
         response = requests.get(graph_url, params=params, timeout=10)
@@ -144,9 +144,10 @@ def extract_lead_fields(lead_data):
     phone = None
     email = None
     other_details = {}
+    ad_name = lead_data.get("ad_name")
 
     for field in lead_data.get("field_data", []):
-        field_name = field.get("name").lower()
+        field_name = field.get("name" or "").lower()
         field_value = field.get("values", [None])[0]
 
 
@@ -162,14 +163,16 @@ def extract_lead_fields(lead_data):
 
         else:
             other_details[field_name] = field_value
-
-    return {
+    if ad_name:
+        other_details["ad_name"] = ad_name
+    val = {
         "name": name or "No Name",
         "mobile": phone or "No Phone Number",
         "email": email or "No Email",
         "other_details": other_details if other_details else "No Other Details",
     }
-
+    logging.info("Meta Payload crm %s", json.dumps(val, indent=2))
+    return val
 def send_to_crm(payload):
     try:
         if not CRM_URL:

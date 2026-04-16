@@ -18,6 +18,11 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 ALERT_EMAIL = os.getenv("ALERT_EMAIL")
+APP_API_CLIENT_ID = os.getenv("APP_API_CLIENT_ID")
+APP_API_CLIENT_SECRET = os.getenv("APP_API_CLIENT_SECRET")
+TOKEN_URL = os.getenv("TOKEN_URL")
+NEW_CRM_URL = os.getenv("NEW_CRM_URL")
+
 FIELD_MAP = {
     "name": ["full_name", "name", "contact_name"],
     "phone": ["phone", "phone_number", "mobile", "mobile_number","contact_number"],
@@ -165,30 +170,73 @@ def extract_lead_fields(lead_data):
             other_details[field_name] = field_value
     if ad_name:
         other_details["ad_name"] = ad_name
+    other_details_string = (
+        ", ".join([f"{k}: {v}" for k, v in other_details.items()])
+        if other_details
+        else "No Other Details"
+    )
     val = {
         "name": name or "No Name",
         "mobile": phone or "No Phone Number",
         "email": email or "No Email",
-        "other_details": other_details if other_details else "No Other Details",
+        "other_details": other_details_string,
     }
+    # val = {
+    #     "name": name or "No Name",
+    #     "mobile": phone or "No Phone Number",
+    #     "email": email or "No Email",
+    #     "other_details": other_details if other_details else "No Other Details",
+    # }
     logging.info("Meta Payload crm %s", json.dumps(val, indent=2))
     return val
+def get_external_access_token():
+    try:
+        payload = {
+            "clientId": APP_API_CLIENT_ID,
+            "clientSecret": APP_API_CLIENT_SECRET
+        }
+
+        response = requests.post(TOKEN_URL, json=payload, timeout=30)
+        response.raise_for_status()
+
+        token_data = response.json()
+
+        access_token = token_data.get("accessToken")
+
+        if not access_token:
+            raise Exception("Access token not found in response")
+
+        return access_token
+
+    except Exception as e:
+        logging.exception("Failed to get external API access token")
+        raise
 def send_to_crm(payload):
     try:
-        if not CRM_URL:
-            logging.error("CRM_URL not configured")
-            return
+        logging.info("Getting external API access token")
 
-        logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
+        access_token = get_external_access_token()
 
-        response = requests.post(CRM_URL, json=payload, timeout=30)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        logging.info("Sending payload to new CRM API: %s", json.dumps(payload, indent=2))
+
+        response = requests.post(
+            NEW_CRM_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
 
         logging.info("CRM Response Status: %s", response.status_code)
         logging.info("CRM Response Body: %s", response.text)
 
         response.raise_for_status()
 
-        logging.info("Lead sent to CRM successfully")
+        logging.info("Lead sent successfully to new CRM")
 
     except requests.exceptions.RequestException as e:
         error_message = str(e)
@@ -201,13 +249,43 @@ def send_to_crm(payload):
 
         logging.error(f"CRM response error: {full_error}")
         logging.exception("Failed to send lead to CRM")
-        
-        if "Mobile Number already exists" in full_error:
-            logging.warning("Duplicate mobile number detected. Skipping failure email.")
-            return
 
-        # Send email for all other errors
         send_failure_email(payload, full_error)
+# def send_to_crm(payload):
+#     try:
+#         if not CRM_URL:
+#             logging.error("CRM_URL not configured")
+#             return
+
+#         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
+
+#         response = requests.post(CRM_URL, json=payload, timeout=30)
+
+#         logging.info("CRM Response Status: %s", response.status_code)
+#         logging.info("CRM Response Body: %s", response.text)
+
+#         response.raise_for_status()
+
+#         logging.info("Lead sent to CRM successfully")
+
+#     except requests.exceptions.RequestException as e:
+#         error_message = str(e)
+
+#         response_body = ""
+#         if hasattr(e, "response") and e.response is not None:
+#             response_body = e.response.text
+
+#         full_error = f"{error_message} | CRM Response: {response_body}"
+
+#         logging.error(f"CRM response error: {full_error}")
+#         logging.exception("Failed to send lead to CRM")
+        
+#         if "Mobile Number already exists" in full_error:
+#             logging.warning("Duplicate mobile number detected. Skipping failure email.")
+#             return
+
+#         # Send email for all other errors
+#         send_failure_email(payload, full_error)
 
 def get_graph_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"

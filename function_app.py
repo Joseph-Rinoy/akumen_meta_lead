@@ -10,7 +10,6 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
-CRM_URL = os.getenv("CRM_URL")
 STORAGE_CONN = os.getenv("AzureWebJobsStorage")
 QUEUE_NAME = os.getenv("QUEUE_NAME")
 TENANT_ID = os.getenv("TENANT_ID")
@@ -21,7 +20,7 @@ ALERT_EMAIL = os.getenv("ALERT_EMAIL")
 APP_API_CLIENT_ID = os.getenv("APP_API_CLIENT_ID")
 APP_API_CLIENT_SECRET = os.getenv("APP_API_CLIENT_SECRET")
 TOKEN_URL = os.getenv("TOKEN_URL")
-NEW_CRM_URL = os.getenv("NEW_CRM_URL")
+CRM_URL = os.getenv("CRM_URL")
 
 FIELD_MAP = {
     "name": ["full_name", "name", "contact_name"],
@@ -181,12 +180,6 @@ def extract_lead_fields(lead_data):
         "email": email or "No Email",
         "other_details": other_details_string,
     }
-    # val = {
-    #     "name": name or "No Name",
-    #     "mobile": phone or "No Phone Number",
-    #     "email": email or "No Email",
-    #     "other_details": other_details if other_details else "No Other Details",
-    # }
     logging.info("Meta Payload crm %s", json.dumps(val, indent=2))
     return val
 def get_external_access_token():
@@ -225,7 +218,7 @@ def send_to_crm(payload):
         logging.info("Sending payload to new CRM API: %s", json.dumps(payload, indent=2))
 
         response = requests.post(
-            NEW_CRM_URL,
+            CRM_URL,
             headers=headers,
             json=payload,
             timeout=30
@@ -251,42 +244,7 @@ def send_to_crm(payload):
         logging.exception("Failed to send lead to CRM")
 
         send_failure_email(payload, full_error)
-# def send_to_crm(payload):
-#     try:
-#         if not CRM_URL:
-#             logging.error("CRM_URL not configured")
-#             return
-
-#         logging.info("Sending payload to CRM: %s", json.dumps(payload, indent=2))
-
-#         response = requests.post(CRM_URL, json=payload, timeout=30)
-
-#         logging.info("CRM Response Status: %s", response.status_code)
-#         logging.info("CRM Response Body: %s", response.text)
-
-#         response.raise_for_status()
-
-#         logging.info("Lead sent to CRM successfully")
-
-#     except requests.exceptions.RequestException as e:
-#         error_message = str(e)
-
-#         response_body = ""
-#         if hasattr(e, "response") and e.response is not None:
-#             response_body = e.response.text
-
-#         full_error = f"{error_message} | CRM Response: {response_body}"
-
-#         logging.error(f"CRM response error: {full_error}")
-#         logging.exception("Failed to send lead to CRM")
         
-#         if "Mobile Number already exists" in full_error:
-#             logging.warning("Duplicate mobile number detected. Skipping failure email.")
-#             return
-
-#         # Send email for all other errors
-#         send_failure_email(payload, full_error)
-
 def get_graph_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
 

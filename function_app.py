@@ -175,9 +175,10 @@ def extract_lead_fields(lead_data):
         else "No Other Details"
     )
     val = {
-        "name": name or "No Name",
-        "mobile": phone or "No Phone Number",
-        "email": email or "No Email",
+        "name": name or "N/A",
+        "mobile": phone or "N/A",
+        "email": email or None,
+        "lead_source": "Meta Ads",
         "other_details": other_details_string,
     }
     logging.info("Meta Payload crm %s", json.dumps(val, indent=2))
@@ -244,7 +245,7 @@ def send_to_crm(payload):
         logging.exception("Failed to send lead to CRM")
 
         send_failure_email(payload, full_error)
-        
+
 def get_graph_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
 
